@@ -1,0 +1,205 @@
+<?xml version="1.0"?>
+<!DOCTYPE pdf PUBLIC "-//big.faceless.org//report" "report-1.1.dtd">
+<pdf>
+<head>
+    <link name="NotoSans" type="font" subtype="truetype" src="${nsfont.NotoSans_Regular}" src-bold="${nsfont.NotoSans_Bold}" src-italic="${nsfont.NotoSans_Italic}" src-bolditalic="${nsfont.NotoSans_BoldItalic}" bytes="2" />
+    <macrolist>
+        <macro id="nlheader">
+            <table style="width: 100%; margin-top: 10px;">
+                <tr>
+                    <td style="width: 50%; vertical-align: top;">
+                        <img src="${companyInformation.logoUrl}" style="display: block; max-width: 150px; max-height: 70px; margin: 0 0 15px 0;" />
+                        <h1 style="font-size: 24px; color: #0066b2; margin: 0; font-weight: 700;">Commission Quote</h1>
+                        <p style="font-size: 14px; color: #6c757d; margin: 8px 0 0 0;">Quote #${record.id}</p>
+                    </td>
+                    <td style="width: 50%; text-align: right; vertical-align: top; font-size: 9px; color: #212529;">
+                        <p style="margin: 0 0 8px 0;"><b>Hatfield and Company</b></p>
+                        <p style="margin: 0 0 8px 0;">2475 Discovery Blvd</p>
+                        <p style="margin: 0 0 8px 0;">Rockwall, TX 75032</p>
+                        <p style="margin: 0;">Phone: (555) 123-4567</p>
+                    </td>
+                </tr>
+            </table>
+            <hr style="border: none; border-top: 2px solid #0066b2; margin: 20px 0 10px 0;" />
+        </macro>
+        <macro id="nlfooter">
+            <hr style="border: none; border-top: 1px solid #dee2e6; margin: 10px 0;" />
+            <p style="font-size: 9px; color: #6c757d; text-align: center; margin: 10px 0;">
+                Hatfield and Company | www.hatfieldandcompany.com | Page <pagenumber/> of <totalpages/>
+            </p>
+        </macro>
+    </macrolist>
+    <style type="text/css">
+        * {
+            font-family: NotoSans, sans-serif;
+            font-size: 10pt;
+        }
+        /* body {
+            margin: 0.75in 0.75in 0.75in 0.75in;
+        } */
+        table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+        th {
+            background-color: #f8f9fa;
+            color: #212529;
+            font-weight: 600;
+            text-align: left;
+            padding: 12px;
+            border-bottom: 2px solid #0066b2;
+            font-size: 9pt;
+        }
+        td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #dee2e6;
+            vertical-align: top;
+            line-height: 1.4;
+        }
+        .info-section {
+            background: #f8f9fa;
+            border-left: 3px solid #0066b2;
+            padding: 15px 20px;
+            margin: 20px 0;
+        }
+        .info-label {
+            font-weight: 600;
+            color: #495057;
+            font-size: 9pt;
+            margin-bottom: 5px;
+        }
+        .info-value {
+            color: #212529;
+            font-size: 10pt;
+        }
+        .totals-section {
+            background: #ffffff;
+            border: 1px solid #dee2e6;
+            padding: 15px;
+            margin-top: 20px;
+        }
+        .total-row {
+            display: table;
+            width: 100%;
+            margin: 8px 0;
+        }
+        .total-label {
+            font-weight: 600;
+            color: #495057;
+            font-size: 10pt;
+        }
+        .total-value {
+            font-weight: 700;
+            color: #0066b2;
+            font-size: 14pt;
+        }
+        .section-title {
+            font-size: 13pt;
+            font-weight: 600;
+            color: #0066b2;
+            margin: 25px 0 15px 0;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #0066b2;
+        }
+        .number-cell {
+            text-align: right;
+        }
+    </style>
+</head>
+<body header="nlheader" header-height="140px" footer="nlfooter" footer-height="30px" padding="0.5in 0.5in 0.5in 0.5in" size="Letter">
+
+    <!-- Header Information -->
+    <table style="width: 100%; margin-bottom: 20px; border: 1px solid #dee2e6;">
+        <tr>
+            <td style="width: 25%; padding: 12px; background-color: #f8f9fa; font-weight: 600; font-size: 9pt; color: #495057; border-right: 1px solid #dee2e6; border-bottom: 1px solid #dee2e6;">Commission<br /> Customer</td>
+            <td style="width: 25%; padding: 12px; font-size: 10pt; border-right: 1px solid #dee2e6; border-bottom: 1px solid #dee2e6;">${customData.commissionCustomer}</td>
+            <td style="width: 25%; padding: 12px; background-color: #f8f9fa; font-weight: 600; font-size: 9pt; color: #495057; border-right: 1px solid #dee2e6; border-bottom: 1px solid #dee2e6;">Vendor</td>
+            <td style="width: 25%; padding: 12px; font-size: 10pt; border-bottom: 1px solid #dee2e6;">${customData.vendor}</td>
+        </tr>
+        <tr>
+            <td style="padding: 12px; background-color: #f8f9fa; font-weight: 600; font-size: 9pt; color: #495057; border-right: 1px solid #dee2e6; border-bottom: 1px solid #dee2e6;">Location</td>
+            <td style="padding: 12px; font-size: 10pt; border-right: 1px solid #dee2e6; border-bottom: 1px solid #dee2e6;">${customData.location}</td>
+            <td style="padding: 12px; background-color: #f8f9fa; font-weight: 600; font-size: 9pt; color: #495057; border-right: 1px solid #dee2e6; border-bottom: 1px solid #dee2e6;">Branch</td>
+            <td style="padding: 12px; font-size: 10pt; border-bottom: 1px solid #dee2e6;">${customData.branch}</td>
+        </tr>
+        <tr>
+            <td style="padding: 12px; background-color: #f8f9fa; font-weight: 600; font-size: 9pt; color: #495057; border-right: 1px solid #dee2e6;">Ship To Location</td>
+            <td colspan="3" style="padding: 12px; font-size: 10pt;">${customData.shipToLocation}</td>
+        </tr>
+    </table>
+
+    <#if customData.headerNotes?has_content>
+    <table style="width: 100%; margin-bottom: 20px; border: 1px solid #dee2e6; border-left: 3px solid #0066b2; background-color: #f8f9fa;">
+        <tr>
+            <td style="padding: 15px; border: none;">
+                <p style="margin: 0 0 8px 0; font-weight: 600; font-size: 9pt; color: #495057;">Notes</p>
+                <p style="margin: 0; font-size: 10pt; color: #212529; line-height: 1.5;">${customData.headerNotes}</p>
+            </td>
+        </tr>
+    </table>
+    </#if>
+
+    <!-- Line Items -->
+    <p style="font-size: 13pt; font-weight: 600; color: #0066b2; margin: 25px 0 15px 0; padding-bottom: 8px; border-bottom: 1px solid #0066b2;">Line Items</p>
+    <table style="table-layout: fixed; width: 100%;">
+        <thead>
+            <tr>
+                <th style="width: 30px;">#</th>
+                <th style="width: 120px;">Vendor Item</th>
+                <th>Notes</th>
+                <th style="width: 50px;">Qty</th>
+                <th style="width: 70px;">Rate</th>
+                <th style="width: 90px;">Line Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            <#if customData.lines?has_content>
+                <#list customData.lines as line>
+                <tr>
+                    <td>${line.index}</td>
+                    <td>${line.vendorItem}</td>
+                    <td style="font-size: 8pt; color: #6c757d;">${line.notes}</td>
+                    <td class="number-cell">${line.quantity}</td>
+                    <td class="number-cell">$${line.rate}</td>
+                    <td class="number-cell" style="font-weight: 600; color: #0066b2;">$${line.lineTotal}</td>
+                </tr>
+                </#list>
+            <#else>
+                <tr>
+                    <td colspan="6" style="text-align: center; color: #6c757d; padding: 30px;">No line items</td>
+                </tr>
+            </#if>
+        </tbody>
+    </table>
+
+    <!-- Totals Section -->
+    <table style="width: 100%; margin-top: 20px; border: none;">
+        <tr>
+            <td style="width: 55%; border: none;"></td>
+            <td style="width: 20%; border: none; padding: 12px; text-align: right; font-weight: 600; font-size: 11pt; color: #495057;">Order Total:</td>
+            <td style="width: 25%; border: none; padding: 12px; text-align: right; font-weight: 700; font-size: 16pt; color: #0066b2;">$${customData.orderTotal}</td>
+        </tr>
+        <tr>
+            <td style="border: none;"></td>
+        </tr>
+    </table>
+
+    <!-- Terms and Conditions (Optional) -->
+    <table style="width: 100%; margin-top: 30px; background-color: #f8f9fa; border: 1px solid #dee2e6;">
+        <tr>
+            <td style="padding: 18px; border: none; font-size: 7pt; color: #6c757d;">
+                <p style="margin: 0 0 6px 0;">
+                    <b>Terms &amp; Conditions:</b> This quote is valid for 30 days from the date of issue.
+                </p>
+                <p style="margin: 0 0 6px 0;">
+                    Prices are subject to change without notice. Payment terms: Net 30 days.
+                </p>
+                <p style="margin: 0;">
+                    All sales are final unless otherwise specified.
+                </p>
+            </td>
+        </tr>
+    </table>
+
+</body>
+</pdf>
