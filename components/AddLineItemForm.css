@@ -94,14 +94,19 @@ body {
   padding: 20px; 
   box-shadow: var(--shadow); 
   border: 1px solid var(--border-color);
+  margin-bottom: 24px;
+}
+
+.ali-card:last-child {
+  margin-bottom: 0;
 }
 
 .ali-header{ 
   display: flex; 
   align-items: flex-start; 
   justify-content: space-between; 
-  margin-bottom: 16px;
-  padding-bottom: 12px;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
   border-bottom: 2px solid var(--hatfield-blue);
 }
 
@@ -300,6 +305,7 @@ body {
 .ali-section{
   padding: 16px;
   border-bottom: 1px solid var(--border-color);
+  margin-bottom: 24px;
 }
 
 /* Dark mode: make header field labels white for contrast */
@@ -422,4 +428,62 @@ body {
 .ali-theme-legacy option{
   background-color: var(--select-surface) !important;
   color: var(--text-primary) !important;
+}
+
+/* Subtabs */
+.ali-subtabs {
+  display: flex;
+  gap: 8px;
+  border-bottom: 2px solid var(--border-color);
+  margin-bottom: 0;
+  margin-top: 32px;
+  padding: 0 16px;
+  background: var(--surface-muted);
+}
+
+.ali-subtab {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  padding: 12px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  position: relative;
+  border-radius: 0;
+  transition: color 0.2s ease, background 0.15s ease;
+  outline: none;
+}
+
+.ali-subtab:hover {
+  color: var(--text-primary);
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.ali-theme-legacy .ali-subtab:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.ali-subtab.active {
+  color: var(--hatfield-blue);
+  font-weight: 700;
+}
+
+.ali-subtab.active::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--hatfield-blue);
+  border-radius: 3px 3px 0 0;
+}
+
+.ali-theme-legacy .ali-subtab {
+  color: var(--text-secondary);
+}
+
+.ali-theme-legacy .ali-subtab.active {
+  color: var(--hatfield-blue);
 }

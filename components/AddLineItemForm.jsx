@@ -17,6 +17,9 @@ export default function AddLineItemForm() {
     try { localStorage.setItem('aliTheme', theme); } catch { /* ignore */ }
   }, [theme]);
 
+  // Subtab state: 'lineItems', 'shipping', or 'salesTeam'
+  const [activeSubtab, setActiveSubtab] = useState('lineItems');
+
   
   const [lines, setLines] = useState([]);
   const [locations, setLocations] = useState([]);
@@ -32,6 +35,24 @@ export default function AddLineItemForm() {
   const [vendor, setVendor] = useState("");
   const [headerLocation, setHeaderLocation] = useState("");
   const [branch, setBranch] = useState("");
+  
+  // Shipping Information fields
+  const [billingAddress, setBillingAddress] = useState("");
+  const [shippingAddress, setShippingAddress] = useState("");
+  const [fob, setFob] = useState("");
+  const [freightTerms, setFreightTerms] = useState("");
+  const [shippingCarrier, setShippingCarrier] = useState("");
+  const [shippingMethod, setShippingMethod] = useState("");
+  const [freightCarrier, setFreightCarrier] = useState("");
+  const [collectThirdPartyAccount, setCollectThirdPartyAccount] = useState("");
+  const [customerPoReference, setCustomerPoReference] = useState("");
+  const [shippingCost, setShippingCost] = useState("");
+  const [handlingCost, setHandlingCost] = useState("");
+  const [doNotBillInboundFreight, setDoNotBillInboundFreight] = useState(false);
+  const [trackingNumber, setTrackingNumber] = useState("");
+  
+  // Sales Team Members - table style list
+  const [salesTeamMembers, setSalesTeamMembers] = useState([]);
   
   // Dropdown data for header fields
   const [customers, setCustomers] = useState([]);
@@ -52,7 +73,8 @@ export default function AddLineItemForm() {
   const isViewOnly = mode === 'view' || mode === 'edit';
 
   // Combined loading flag for a simple loader overlay/toast
-  const isLoading = saving || loadingAuth || autoLoading || locationsLoading || customersLoading || vendorsLoading || branchesLoading;
+  // Exclude customersLoading and vendorsLoading from full-screen overlay to prevent flashing while typing
+  const isLoading = saving || loadingAuth || autoLoading || locationsLoading || branchesLoading;
   const loaderMessage = saving
     ? 'Saving changes...'
     : loadingAuth
@@ -179,8 +201,18 @@ export default function AddLineItemForm() {
 
     const emptyLine = () => ({ id: Date.now().toString(), itemId: "", commissionItem: "", vendorItem: "", notes: "", quantity: 1, rate: "", mfgSellingPrice: "", commAmount: "", cost: "" });
 
+    const emptySalesTeamMember = () => ({ 
+      id: Date.now().toString(), 
+      employee: "", 
+      salesRole: "", 
+      primary: false, 
+      contribution: "" 
+    });
+
     const tableWrapRef = useRef(null);
     const lastAddedLineRef = useRef(null);
+    const salesTeamTableWrapRef = useRef(null);
+    const lastAddedSalesTeamRef = useRef(null);
     const customerDropdownRef = useRef(null);
     const vendorDropdownRef = useRef(null);
 
@@ -189,8 +221,19 @@ export default function AddLineItemForm() {
       lastAddedLineRef.current = nl.id;
       setLines((prev) => [...prev, nl]);
     };
+    
+    const addBlankSalesTeamMember = () => {
+      const newMember = emptySalesTeamMember();
+      lastAddedSalesTeamRef.current = newMember.id;
+      setSalesTeamMembers((prev) => [...prev, newMember]);
+    };
+    
     const updateLine = (id, field, value) => setLines((prev) => prev.map((ln) => (ln.id === id ? { ...ln, [field]: value } : ln)));
     const removeLine = (id) => setLines((prev) => prev.filter((ln) => ln.id !== id));
+    
+    const updateSalesTeamMember = (id, field, value) => 
+      setSalesTeamMembers((prev) => prev.map((member) => (member.id === id ? { ...member, [field]: value } : member)));
+    const removeSalesTeamMember = (id) => setSalesTeamMembers((prev) => prev.filter((member) => member.id !== id));
 
     // Close customer dropdown when clicking outside
     useEffect(() => {
@@ -209,6 +252,7 @@ export default function AddLineItemForm() {
     // Ensure the table starts with one blank line on first mount
     useEffect(() => {
       if (lines.length === 0) addBlankLine();
+      if (salesTeamMembers.length === 0) addBlankSalesTeamMember();
 
       // Try to populate initial lines from several possible sources:
       // 1) `window.initialVendorPO` (object or JSON string)
@@ -270,11 +314,64 @@ export default function AddLineItemForm() {
              (c.entitynumber && c.entitynumber.toString().includes(search));
     });
 
-    const selectCustomer = (customerId) => {
+    const selectCustomer = async (customerId) => {
       setCommissionCustomer(customerId);
       const selected = customers.find(c => c.id === customerId);
       setCustomerSearch(selected ? selected.entitynumber + ' ' + selected.name : "");
       setCustomerDropdownOpen(false);
+      
+      // Fetch customer details to get sales rep
+      if (customerId && authHeader) {
+        try {
+          const headers = { 'Content-Type': 'application/json' };
+          if (authHeader) headers['Authorization'] = authHeader;
+          const res = await fetch(`/app/site/hosting/restlet.nl?script=4336&deploy=1&type=customer&id=${encodeURIComponent(customerId)}`, {
+            method: 'GET',
+            headers,
+            credentials: 'same-origin',
+          });
+          const data = await res.json();
+          console.debug('Customer details:', data);
+          
+          // Populate addresses if available
+          if (data.billing_address) setBillingAddress(data.billing_address);
+          if (data.shipping_address) setShippingAddress(data.shipping_address);
+          
+          // If customer has a sales rep, add/update the first sales team member
+          if (data.salesrep_name || data.salesRep_name) {
+            const salesRepName = data.salesrep_name || data.salesRep_name || '';
+            const salesRepCommission = data.salesrep_commission || data.salesRep_commission || '';
+            
+            console.debug('Found sales rep:', { name: salesRepName, commission: salesRepCommission });
+            
+            setSalesTeamMembers((currentMembers) => {
+              if (currentMembers.length > 0) {
+                // Update first member
+                const updated = [...currentMembers];
+                updated[0] = {
+                  ...updated[0],
+                  employee: salesRepName,
+                  salesRole: 'Sales Representative',
+                  primary: true,
+                  contribution: salesRepCommission ? salesRepCommission.toString() : ''
+                };
+                return updated;
+              } else {
+                // Add new member if none exist
+                return [{
+                  ...emptySalesTeamMember(),
+                  employee: salesRepName,
+                  salesRole: 'Sales Representative',
+                  primary: true,
+                  contribution: salesRepCommission ? salesRepCommission.toString() : ''
+                }];
+              }
+            });
+          }
+        } catch (e) {
+          console.debug('Could not fetch customer sales rep:', e);
+        }
+      }
     };
 
     const handleCustomerSearchChange = (value) => {
@@ -395,6 +492,41 @@ export default function AddLineItemForm() {
       });
     }, [lines]);
 
+    // Scroll the newly added sales team member into view
+    useEffect(() => {
+      const id = lastAddedSalesTeamRef.current;
+      if (!id) return;
+      requestAnimationFrame(() => {
+        try {
+          const wrap = salesTeamTableWrapRef.current;
+          if (!wrap) { lastAddedSalesTeamRef.current = null; return; }
+          const row = wrap.querySelector(`tr[data-memberid="${id}"]`);
+          if (!row) { lastAddedSalesTeamRef.current = null; return; }
+
+          const wrapRect = wrap.getBoundingClientRect();
+          const rowRect = row.getBoundingClientRect();
+          const offset = rowRect.top - wrapRect.top;
+          const desiredTop = Math.max(0, offset - (wrap.clientHeight / 2) + (row.clientHeight / 2));
+
+          if (typeof wrap.scrollTo === 'function') {
+            wrap.scrollTo({ top: desiredTop + wrap.scrollTop, behavior: 'smooth' });
+          } else {
+            wrap.scrollTop = desiredTop;
+          }
+
+          const control = row.querySelector('input');
+          if (control && typeof control.focus === 'function') {
+            control.focus({ preventScroll: true });
+            if (control.tagName === 'INPUT') try { control.select(); } catch (e) { /* ignore */ }
+          }
+
+          lastAddedSalesTeamRef.current = null;
+        } catch (e) {
+          lastAddedSalesTeamRef.current = null;
+        }
+      });
+    }, [salesTeamMembers]);
+
     // Auto-load saved JSON from the backend if a record id is available
     useEffect(() => {
       // wait for auth header to be loaded
@@ -455,6 +587,44 @@ export default function AddLineItemForm() {
             if (fields.custrecord_location) setHeaderLocation(String(fields.custrecord_location));
             if (fields.custrecord_branch) setBranch(String(fields.custrecord_branch));
             if (fields.custrecord_ship_to_location) setShipToLocation(String(fields.custrecord_ship_to_location));
+            
+            // Address fields
+            if (fields.custrecord_billing_address) setBillingAddress(fields.custrecord_billing_address);
+            if (fields.custrecord_shipping_address) setShippingAddress(fields.custrecord_shipping_address);
+            
+            // Shipping information fields
+            if (fields.custrecord_fob) setFob(fields.custrecord_fob);
+            if (fields.custrecord_freight_terms) setFreightTerms(fields.custrecord_freight_terms);
+            if (fields.custrecord_shipping_carrier) setShippingCarrier(fields.custrecord_shipping_carrier);
+            if (fields.custrecord_shipping_method) setShippingMethod(fields.custrecord_shipping_method);
+            if (fields.custrecord_freight_carrier) setFreightCarrier(fields.custrecord_freight_carrier);
+            if (fields.custrecord_collect_third_party_account) setCollectThirdPartyAccount(fields.custrecord_collect_third_party_account);
+            if (fields.custrecord_customer_po_reference) setCustomerPoReference(fields.custrecord_customer_po_reference);
+            if (fields.custrecord_shipping_cost) setShippingCost(fields.custrecord_shipping_cost);
+            if (fields.custrecord_handling_cost) setHandlingCost(fields.custrecord_handling_cost);
+            if (fields.custrecord_do_not_bill_inbound_freight != null) setDoNotBillInboundFreight(fields.custrecord_do_not_bill_inbound_freight);
+            if (fields.custrecord_tracking_number) setTrackingNumber(fields.custrecord_tracking_number);
+            
+            // Sales team members - parse from JSON or array
+            if (fields.custrecord_sales_team_members) {
+              try {
+                const teamData = typeof fields.custrecord_sales_team_members === 'string' 
+                  ? JSON.parse(fields.custrecord_sales_team_members) 
+                  : fields.custrecord_sales_team_members;
+                if (Array.isArray(teamData)) {
+                  const mapped = teamData.map(member => ({
+                    id: member.id || Date.now().toString() + Math.random().toString(36).slice(2,6),
+                    employee: member.employee || '',
+                    salesRole: member.salesRole || member.sales_role || '',
+                    primary: member.primary != null ? member.primary : false,
+                    contribution: member.contribution != null ? member.contribution : ''
+                  }));
+                  setSalesTeamMembers(mapped);
+                }
+              } catch (e) {
+                console.debug('Could not parse sales team members', e);
+              }
+            }
           }
           
           // Load line items from response
@@ -534,6 +704,28 @@ export default function AddLineItemForm() {
           custrecord_vendor: vendor || null,
           custrecord_location: headerLocation || null,
           custrecord_branch: branch || null,
+          // Address fields
+          custrecord_billing_address: billingAddress || null,
+          custrecord_shipping_address: shippingAddress || null,
+          // Shipping information fields
+          custrecord_fob: fob || null,
+          custrecord_freight_terms: freightTerms || null,
+          custrecord_shipping_carrier: shippingCarrier || null,
+          custrecord_shipping_method: shippingMethod || null,
+          custrecord_freight_carrier: freightCarrier || null,
+          custrecord_collect_third_party_account: collectThirdPartyAccount || null,
+          custrecord_customer_po_reference: customerPoReference || null,
+          custrecord_shipping_cost: shippingCost || null,
+          custrecord_handling_cost: handlingCost || null,
+          custrecord_do_not_bill_inbound_freight: doNotBillInboundFreight || false,
+          custrecord_tracking_number: trackingNumber || null,
+          // Sales team members as JSON
+          custrecord_sales_team_members: salesTeamMembers.length > 0 ? JSON.stringify(salesTeamMembers.map(member => ({
+            employee: member.employee || null,
+            salesRole: member.salesRole || null,
+            primary: member.primary || false,
+            contribution: member.contribution || null
+          }))) : null,
         },
         lines: cleaned.map((ln) => ({
           itemId: ln.itemId || ln.commissionItem || null,
@@ -615,6 +807,8 @@ export default function AddLineItemForm() {
             </div>
           </div>
         )}
+        
+        {/* Header Card */}
         <div className="ali-card">
           <div className="ali-header">
             <h3 className="ali-title">Commission Header Information</h3>
@@ -726,10 +920,40 @@ export default function AddLineItemForm() {
               />
             </div>
           </div>
-           <div className="ali-header">
-            <h3 className="ali-title">Add / Edit Line Items</h3> 
-            <div className="ali-sub">Create lines locally, then persist to the Quote</div>
+        </div>
+        
+        {/* Line Level Detail Card */}
+        <div className="ali-card">
+           {/* <div className="ali-header">
+            <h3 className="ali-title">Line Level Detail</h3> 
+            <div className="ali-sub">Manage line items, shipping, and sales team</div>
+          </div> */}
+          
+          {/* Subtabs */}
+          <div className="ali-subtabs">
+            <button 
+              className={`ali-subtab ${activeSubtab === 'lineItems' ? 'active' : ''}`}
+              onClick={() => setActiveSubtab('lineItems')}
+            >
+              Line Items
+            </button>
+            <button 
+              className={`ali-subtab ${activeSubtab === 'shipping' ? 'active' : ''}`}
+              onClick={() => setActiveSubtab('shipping')}
+            >
+              Shipping Information
+            </button>
+            <button 
+              className={`ali-subtab ${activeSubtab === 'salesTeam' ? 'active' : ''}`}
+              onClick={() => setActiveSubtab('salesTeam')}
+            >
+              Sales Team Members
+            </button>
           </div>
+
+          {/* Line Items Tab */}
+          {activeSubtab === 'lineItems' && (
+            <>
           <div className="ali-controls">
             {/* Quote ID removed per request */}
 
@@ -839,9 +1063,253 @@ export default function AddLineItemForm() {
                 <button className="ali-btn ali-btn-ghost" onClick={addBlankLine}>+ Add New Line</button>
                  </div> */}
           </div>
+            </>
+          )}
+
+          {/* Shipping Information Tab */}
+          {activeSubtab === 'shipping' && (
+            <div className="ali-section" style={{ marginTop: '24px', padding: '0 8px' }}>
+              {/* Address Section */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '24px', marginBottom: '32px' }}>
+                <div>
+                  <label style={{ display: 'block', fontWeight: 500, marginBottom: '8px', fontSize: '14px' }}>Billing Address</label>
+                  <textarea
+                    className="ali-input"
+                    value={billingAddress}
+                    onChange={(e) => setBillingAddress(e.target.value)}
+                    placeholder="Billing address..."
+                    rows={6}
+                    disabled={saving}
+                    style={{ resize: 'vertical', width: '50%', fontFamily: 'inherit' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontWeight: 500, marginBottom: '8px', fontSize: '14px' }}>Shipping Address</label>
+                  <textarea
+                    className="ali-input"
+                    value={shippingAddress}
+                    onChange={(e) => setShippingAddress(e.target.value)}
+                    placeholder="Shipping address..."
+                    rows={6}
+                    disabled={saving}
+                    style={{ resize: 'vertical', width: '50%', fontFamily: 'inherit' }}
+                  />
+                </div>
+                <div></div>
+              </div>
+              
+              {/* Shipping Details Section */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px 20px', marginBottom: '24px' }}>
+                <div>
+                  <label style={{ display: 'block', fontWeight: 500, marginBottom: '8px', fontSize: '14px' }}>FOB</label>
+                  <input
+                    type="text"
+                    className="ali-input"
+                    value={fob}
+                    onChange={(e) => setFob(e.target.value)}
+                    placeholder="e.g., Shipping Point"
+                    disabled={saving}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontWeight: 500, marginBottom: '8px', fontSize: '14px' }}>Freight Terms</label>
+                  <input
+                    type="text"
+                    className="ali-input"
+                    value={freightTerms}
+                    onChange={(e) => setFreightTerms(e.target.value)}
+                    placeholder="e.g., Collect"
+                    disabled={saving}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontWeight: 500, marginBottom: '8px', fontSize: '14px' }}>Shipping Carrier</label>
+                  <input
+                    type="text"
+                    className="ali-input"
+                    value={shippingCarrier}
+                    onChange={(e) => setShippingCarrier(e.target.value)}
+                    placeholder="e.g., More"
+                    disabled={saving}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontWeight: 500, marginBottom: '8px', fontSize: '14px' }}>Shipping Method</label>
+                  <input
+                    type="text"
+                    className="ali-input"
+                    value={shippingMethod}
+                    onChange={(e) => setShippingMethod(e.target.value)}
+                    placeholder="e.g., Federal Express Ground"
+                    disabled={saving}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontWeight: 500, marginBottom: '8px', fontSize: '14px' }}>Freight Carrier</label>
+                  <input
+                    type="text"
+                    className="ali-input"
+                    value={freightCarrier}
+                    onChange={(e) => setFreightCarrier(e.target.value)}
+                    placeholder="Freight Carrier"
+                    disabled={saving}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontWeight: 500, marginBottom: '8px', fontSize: '14px' }}>Collect/Third Party Account</label>
+                  <input
+                    type="text"
+                    className="ali-input"
+                    value={collectThirdPartyAccount}
+                    onChange={(e) => setCollectThirdPartyAccount(e.target.value)}
+                    placeholder="e.g., 319260617"
+                    disabled={saving}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontWeight: 500, marginBottom: '8px', fontSize: '14px' }}>HF - Customer PO Reference</label>
+                  <input
+                    type="text"
+                    className="ali-input"
+                    value={customerPoReference}
+                    onChange={(e) => setCustomerPoReference(e.target.value)}
+                    placeholder="e.g., 381668"
+                    disabled={saving}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontWeight: 500, marginBottom: '8px', fontSize: '14px' }}>Shipping Cost</label>
+                  <input
+                    type="text"
+                    className="ali-input ali-numeric"
+                    value={shippingCost}
+                    onChange={(e) => setShippingCost(e.target.value)}
+                    placeholder="0.00"
+                    disabled={saving}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontWeight: 500, marginBottom: '8px', fontSize: '14px' }}>Handling Cost</label>
+                  <input
+                    type="text"
+                    className="ali-input ali-numeric"
+                    value={handlingCost}
+                    onChange={(e) => setHandlingCost(e.target.value)}
+                    placeholder="0.00"
+                    disabled={saving}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontWeight: 500, marginBottom: '8px', fontSize: '14px' }}>HF - Tracking #</label>
+                  <input
+                    type="text"
+                    className="ali-input"
+                    value={trackingNumber}
+                    onChange={(e) => setTrackingNumber(e.target.value)}
+                    placeholder="Tracking Number"
+                    disabled={saving}
+                  />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', paddingTop: '32px' }}>
+                  <input
+                    type="checkbox"
+                    id="doNotBillInbound"
+                    checked={doNotBillInboundFreight}
+                    onChange={(e) => setDoNotBillInboundFreight(e.target.checked)}
+                    disabled={saving}
+                    style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                  />
+                  <label htmlFor="doNotBillInbound" style={{ fontWeight: 500, cursor: 'pointer', fontSize: '14px', whiteSpace: 'nowrap' }}>
+                    HF - Do Not Bill Inbound Freight
+                  </label>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Sales Team Members Tab */}
+          {activeSubtab === 'salesTeam' && (
+            <>
+            <div className="ali-controls" style={{ marginTop: '20px' }}>
+              {/* Optional: Add controls here if needed */}
+            </div>
+            
+            <div className="ali-table-wrap" ref={salesTeamTableWrapRef}>
+              <table className="ali-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th style={{ textAlign: "center" }}>Employee</th>
+                    <th style={{ textAlign: "center" }}>Sales Role</th>
+                    <th style={{ textAlign: "center" }}>Primary</th>
+                    <th style={{ textAlign: "center" }}>Contribution %</th>
+                    <th> </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {salesTeamMembers.length === 0 && (
+                    <tr><td colSpan={6} className="ali-empty">No sales team members. Click "Add New Member" to start.</td></tr>
+                  )}
+                  {salesTeamMembers.map((member, idx) => (
+                    <tr key={member.id} data-memberid={member.id}>
+                      <td className="ali-idx">{idx + 1}</td>
+                      <td>
+                        <input
+                          className="ali-input"
+                          value={member.employee}
+                          placeholder="Employee Name"
+                          onChange={(e) => updateSalesTeamMember(member.id, 'employee', e.target.value)}
+                          style={{ width: '100%' }}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          className="ali-input"
+                          value={member.salesRole}
+                          placeholder="e.g., Sales Rep, Manager"
+                          onChange={(e) => updateSalesTeamMember(member.id, 'salesRole', e.target.value)}
+                          style={{ width: '100%' }}
+                        />
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <input
+                          type="checkbox"
+                          checked={member.primary}
+                          onChange={(e) => updateSalesTeamMember(member.id, 'primary', e.target.checked)}
+                          style={{ width: '20px', height: '20px', cursor: 'pointer' }}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          className="ali-input ali-numeric"
+                          value={member.contribution}
+                          placeholder="e.g., 5.0"
+                          onChange={(e) => updateSalesTeamMember(member.id, 'contribution', e.target.value)}
+                        />
+                      </td>
+                      <td>
+                        <button className="ali-btn ali-btn-danger" onClick={() => removeSalesTeamMember(member.id)}>Remove</button>
+                      </td>
+                    </tr>
+                  ))}
+                  {/* Add-new-member row */}
+                  {!isViewOnly && (
+                    <tr className="ali-add-row">
+                      <td colSpan={6} style={{ textAlign: 'center', padding: '12px 0' }}>
+                        <button className="ali-btn ali-btn-ghost" onClick={addBlankSalesTeamMember} disabled={saving}>+ Add New Member</button>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            </>
+          )}
           
-          <div className="ali-footer">
-            <div className="ali-sub" style={{ flex: 1, alignSelf: 'center' }}>Profit: {orderProfit.toFixed(2)}</div>
+          <div className="ali-footer" style={{ marginTop: '20px' }}>
+            <div className="ali-sub" style={{ flex: 1, alignSelf: 'center' }}>
+              {activeSubtab === 'lineItems' && `Profit: ${orderProfit.toFixed(2)}`}
+            </div>
             {!isViewOnly && (
               <button className="ali-btn ali-btn-primary" disabled={saving || loadingAuth || !authHeader} onClick={saveToSalesOrder}>{saving ? "Saving..." : loadingAuth ? "Loading Auth..." : authHeader ? "Save to Quote" : "Missing Auth"}</button>
             )}
