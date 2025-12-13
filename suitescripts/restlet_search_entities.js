@@ -110,19 +110,22 @@ define(['N/query', 'N/log'], function(query, log) {
         try {
             log.debug('Fetching Customer Details', { customerId: customerId });
             
-            const sql = `SELECT 
-                            c.id, 
-                            c.companyname as name, 
-                            c.entityid as entitynumber,
-                            cst.employee as salesrep_id,
-                            e.entityid as salesrep_name,
-                            cst.contribution * 100 as salesrep_commission,
-                            BUILTIN.DF(c.defaultbillingaddress) as billing_address,
-                            BUILTIN.DF(c.defaultshippingaddress) as shipping_address
-                         FROM customer c
-                         LEFT JOIN customersalesteam cst ON c.id = cst.customer AND cst.isprimary = 'T'
-                         LEFT JOIN employee e ON cst.employee = e.id
-                         WHERE c.id = ?`;
+                const sql = `SELECT 
+                                     c.id, 
+                                     c.companyname as name, 
+                                     c.entityid as entitynumber,
+                                     cr.id as branch_id,
+                                     cr.name as branch_name,
+                                     cst.employee as salesrep_id,
+                                     e.entityid as salesrep_name,
+                                     cst.contribution * 100 as salesrep_commission,
+                                     BUILTIN.DF(c.defaultbillingaddress) as billing_address,
+                                     BUILTIN.DF(c.defaultshippingaddress) as shipping_address
+                                 FROM customer c
+                                 LEFT JOIN customersalesteam cst ON c.id = cst.customer AND cst.isprimary = 'T'
+                                 LEFT JOIN employee e ON cst.employee = e.id
+                                 LEFT JOIN customrecord_cseg_hci_branch cr ON c.cseg_hci_branch = cr.id
+                                 WHERE c.id = ?`;
             
             const resultSet = query.runSuiteQL({ 
                 query: sql,
@@ -137,6 +140,8 @@ define(['N/query', 'N/log'], function(query, log) {
                     id: customer.id,
                     name: customer.name,
                     entitynumber: customer.entitynumber,
+                    branch_id: customer.branch_id,
+                    branch_name: customer.branch_name,
                     salesrep_id: customer.salesrep_id,
                     salesrep_name: customer.salesrep_name,
                     salesrep_commission: customer.salesrep_commission,
