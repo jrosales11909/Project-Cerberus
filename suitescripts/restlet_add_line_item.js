@@ -2,7 +2,7 @@
  * @NApiVersion 2.1
  * @NScriptType Restlet
  */
-define(['N/record', 'N/log', 'N/url', 'N/file'], function(record, log, url, file) {
+define(['N/record', 'N/log', 'N/url'], function(record, log, url) {
 
   /**
    * POST entrypoint
@@ -17,26 +17,11 @@ define(['N/record', 'N/log', 'N/url', 'N/file'], function(record, log, url, file
   async function post(data) {
       try {
         // Basic inputs
-        var recordType = data && data.recordType ? data.recordType : 'customrecord_vendor_po';
+        var recordType = data && data.recordType ? data.recordType : 'customrecord_hf_crone_quote';
         var fields = data && data.fields ? data.fields : {};
         var rawLines = Array.isArray(data && data.lines) ? data.lines : [];
 
-        // Create record and apply provided fields where possible
-        var newRec = record.create({ type: recordType, isDynamic: false });
-        try {
-          Object.keys(fields).forEach(function(f) {
-            try {
-              var val = fields[f];
-              if (val !== null && typeof val === 'object') newRec.setValue({ fieldId: f, value: JSON.stringify(val) });
-              else newRec.setValue({ fieldId: f, value: val });
-            } catch (e) { log.debug('field-set-on-create-failed', { field: f, err: e && e.message ? e.message : String(e) }); }
-          });
-        } catch (e) { /* ignore */ }
-
-        var savedId = null;
-        try { savedId = newRec.save(); } catch (e) { log.error('record-create-save-failed', e); throw e; }
-
-        // Normalize and stringify lines content for file write
+        // Normalize lines early so we can include them in the JSON detail field
         var linesArr = rawLines.map(function(ln) {
           try {
             return {
@@ -54,51 +39,48 @@ define(['N/record', 'N/log', 'N/url', 'N/file'], function(record, log, url, file
           } catch (e) { return null; }
         }).filter(function(x) { return x !== null; });
 
-        var contentsStr = JSON.stringify(linesArr, null, 2);
-
-        // Write or replace File Cabinet file
-        var newFileId = null;
-        var folderId = data && data.folderId ? data.folderId : null;
-        var incomingFileId = data && data.fileId ? data.fileId : null;
-        var defaultName = 'vendor_po_' + String(savedId) + '.json';
-
-        if (incomingFileId) {
-          try {
-            var oldFile = file.load({ id: incomingFileId });
-            var nameToUse = oldFile.name || defaultName;
-            var folderToUse = (typeof oldFile.folder === 'number' && oldFile.folder > 0) ? oldFile.folder : folderId;
-            log.debug('restlet:creating-replacement-file', { name: nameToUse, folder: folderToUse, contentLength: contentsStr.length });
-            var created = file.create({ name: nameToUse, fileType: file.Type.JSON, contents: contentsStr, folder: folderToUse });
-            newFileId = created.save();
-            try { file.delete({ id: incomingFileId }); } catch (delErr) { log.debug('restlet:old-file-delete-failed', delErr); }
-          } catch (e) {
-            log.debug('restlet:replace-old-file-failed', e);
-            var created2 = file.create({ name: defaultName, fileType: file.Type.JSON, contents: contentsStr, folder: folderId });
-            newFileId = created2.save();
-          }
-        } else {
-          var created3 = file.create({ name: defaultName, fileType: file.Type.JSON, contents: contentsStr, folder: folderId });
-          newFileId = created3.save();
-        }
-
-        // Attach file id to record (numeric)
-        var result = { success: true, savedRecordId: savedId, updatedRecordId: savedId, fileId: newFileId };
+        // Ensure billing/shipping addresses and sales team members are included in the JSON detail
         try {
-          if (newFileId) {
-            var numericFileId = (typeof newFileId === 'string') ? parseInt(newFileId, 10) : newFileId;
-            if (!isNaN(numericFileId)) {
-              try {
-                record.submitFields({ type: recordType, id: savedId, values: { custrecord_hf_json_file: numericFileId } });
-                result.fileAttach = { success: true, fileId: numericFileId };
-              } catch (attachErr) {
-                log.debug('restlet:submitfields-attach-failed', attachErr);
-                result.fileAttach = { success: false, error: attachErr && attachErr.message ? attachErr.message : String(attachErr) };
+          if (!fields.custrecord_vendor_po_json_detail) {
+            var jsonFields = {
+              custrecord_billing_address: fields.custrecord_billing_address || null,
+              custrecord_shipping_address: fields.custrecord_shipping_address || null,
+              custrecord_sales_team_members: null
+            };
+            try {
+              if (fields.custrecord_sales_team_members) {
+                if (typeof fields.custrecord_sales_team_members === 'string') {
+                  jsonFields.custrecord_sales_team_members = JSON.parse(fields.custrecord_sales_team_members);
+                } else {
+                  jsonFields.custrecord_sales_team_members = fields.custrecord_sales_team_members;
+                }
               }
-            } else {
-              result.fileAttach = { success: false, error: 'invalid_file_id', attempted: newFileId };
+            } catch (e) {
+              // fall back to raw value
+              jsonFields.custrecord_sales_team_members = fields.custrecord_sales_team_members || null;
             }
+
+            fields.custrecord_vendor_po_json_detail = JSON.stringify({ fields: jsonFields, lines: linesArr });
           }
-        } catch (e) { log.debug('restlet:attach-file-error', e); }
+        } catch (e) { log.debug('restlet:build-json-detail-failed', e); }
+
+        // Create record and apply provided fields where possible
+        var newRec = record.create({ type: recordType, isDynamic: false });
+        try {
+          Object.keys(fields).forEach(function(f) {
+            try {
+              var val = fields[f];
+              if (val !== null && typeof val === 'object') newRec.setValue({ fieldId: f, value: JSON.stringify(val) });
+              else newRec.setValue({ fieldId: f, value: val });
+            } catch (e) { log.debug('field-set-on-create-failed', { field: f, err: e && e.message ? e.message : String(e) }); }
+          });
+        } catch (e) { /* ignore */ }
+
+        var savedId = null;
+        try { savedId = newRec.save(); } catch (e) { log.error('record-create-save-failed', e); throw e; }
+
+        // No File Cabinet write is performed; return saved record id.
+        var result = { success: true, savedRecordId: savedId, updatedRecordId: savedId };
 
         // Resolve record URL
         try {
