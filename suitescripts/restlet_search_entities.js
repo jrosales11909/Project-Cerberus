@@ -71,8 +71,7 @@ define(['N/query', 'N/log'], function(query, log) {
                 }
             }
             
-            sql += ` ORDER BY ${nameField} ASC
-                     FETCH FIRST 1000 ROWS ONLY`;
+            sql += ` ORDER BY ${nameField} ASC`;
             
             log.debug('SuiteQL Query', sql);
             
@@ -110,45 +109,55 @@ define(['N/query', 'N/log'], function(query, log) {
         try {
             log.debug('Fetching Customer Details', { customerId: customerId });
             
-                const sql = `SELECT 
-                                     c.id, 
-                                     c.companyname as name, 
-                                     c.entityid as entitynumber,
-                                     cr.id as branch_id,
-                                     cr.name as branch_name,
-                                     cst.employee as salesrep_id,
-                                     e.entityid as salesrep_name,
-                                     cst.contribution * 100 as salesrep_commission,
-                                     BUILTIN.DF(c.defaultbillingaddress) as billing_address,
-                                     BUILTIN.DF(c.defaultshippingaddress) as shipping_address
-                                 FROM customer c
-                                 LEFT JOIN customersalesteam cst ON c.id = cst.customer AND cst.isprimary = 'T'
-                                 LEFT JOIN employee e ON cst.employee = e.id
-                                 LEFT JOIN customrecord_cseg_hci_branch cr ON c.cseg_hci_branch = cr.id
-                                 WHERE c.id = ?`;
-            
-            const resultSet = query.runSuiteQL({ 
-                query: sql,
-                params: [customerId]
-            });
-            const results = resultSet.asMappedResults();
-            
-            if (results && results.length > 0) {
-                const customer = results[0];
-                log.debug('Customer Details Found', customer);
-                return {
-                    id: customer.id,
-                    name: customer.name,
-                    entitynumber: customer.entitynumber,
-                    branch_id: customer.branch_id,
-                    branch_name: customer.branch_name,
-                    salesrep_id: customer.salesrep_id,
-                    salesrep_name: customer.salesrep_name,
-                    salesrep_commission: customer.salesrep_commission,
-                    billing_address: customer.billing_address,
-                    shipping_address: customer.shipping_address
-                };
-            }
+                // Try a single query that LEFT JOINs the custom branch record to fetch id and name in one go.
+                // Some accounts / SuiteQL parsers may reject joins to customrecord tables; if that happens
+                // we fall back to the safer two-step approach (select raw branch id then query branch name).
+                const joinSql = `SELECT 
+                                             c.id, 
+                                             c.companyname as name, 
+                                             c.entityid as entitynumber,
+                                             cr.id as branch_id,
+                                             cr.name as branch_name,
+                                             cr.custrecord_hf_branch_location_id as location_id,
+                                             l.name as location_name,
+                                             cst.employee as salesrep_id,
+                                             e.entityid as salesrep_name,
+                                             cst.contribution * 100 as salesrep_commission,
+                                             BUILTIN.DF(c.defaultbillingaddress) as billing_address,
+                                             BUILTIN.DF(c.defaultshippingaddress) as shipping_address
+                                         FROM customer c
+                                         LEFT JOIN customersalesteam cst ON c.id = cst.customer AND cst.isprimary = 'T'
+                                         LEFT JOIN employee e ON cst.employee = e.id
+                                         LEFT JOIN customrecord_cseg_hci_branch cr ON c.cseg_hci_branch = cr.id
+                                         LEFT JOIN location l ON cr.custrecord_hf_branch_location_id = l.id
+                                         WHERE c.id = ?`;
+
+                let results = null;
+                let usedJoin = false;
+
+                    const resultSet = query.runSuiteQL({ query: joinSql, params: [customerId] });
+                    results = resultSet.asMappedResults();
+                    usedJoin = true;
+               
+
+                if (results && results.length > 0) {
+                    const customer = results[0];
+                    log.debug('Customer Details Found', customer);
+                    return {
+                        id: customer.id,
+                        name: customer.name,
+                        entitynumber: customer.entitynumber,
+                        branch_id: customer.branch_id,
+                        branch_name: customer.branch_name,
+                        location_id: customer.location_id,
+                        location_name: customer.location_name,
+                        salesrep_id: customer.salesrep_id,
+                        salesrep_name: customer.salesrep_name,
+                        salesrep_commission: customer.salesrep_commission,
+                        billing_address: customer.billing_address,
+                        shipping_address: customer.shipping_address
+                    };
+                }
             
             return {
                 success: false,
